@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Dziennik ARC — Analiza emocji</title>
+<meta name="theme-color" content="#5b54e8">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dziennik ARC">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: { extend: {
+      fontFamily: { sans:['"Plus Jakarta Sans"','system-ui','sans-serif'], display:['Fraunces','Georgia','serif'] },
+      colors: {
+        brand: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#5b54e8',700:'#4f46e5',800:'#4338ca' },
+        ink: { 900:'#0e1525',800:'#15203a',700:'#1c2a47' }
+      },
+      boxShadow: {
+        soft:'0 1px 2px rgba(16,24,40,.04), 0 8px 24px -8px rgba(16,24,40,.12)',
+        lift:'0 1px 2px rgba(16,24,40,.04), 0 18px 40px -12px rgba(79,70,229,.28)',
+      }
+    }}
+  }
+</script>
+<style>
+  html{scroll-behavior:smooth}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .font-display{font-family:'Fraunces',Georgia,serif}
+
+  /* tło premium */
+  .app-bg{
+    background:
+      radial-gradient(1100px 600px at 12% -8%, rgba(99,102,241,.16), transparent 55%),
+      radial-gradient(900px 500px at 105% 5%, rgba(236,72,153,.12), transparent 50%),
+      radial-gradient(800px 700px at 50% 120%, rgba(16,185,129,.10), transparent 55%),
+      #f6f7fb;
+  }
+  .dark .app-bg{
+    background:
+      radial-gradient(1100px 600px at 12% -8%, rgba(99,102,241,.22), transparent 55%),
+      radial-gradient(900px 500px at 105% 5%, rgba(236,72,153,.14), transparent 50%),
+      radial-gradient(800px 700px at 50% 120%, rgba(16,185,129,.12), transparent 55%),
+      #090d18;
+  }
+
+  .glass{ background:rgba(255,255,255,.72); backdrop-filter:blur(14px) saturate(140%); }
+  .dark .glass{ background:rgba(15,22,38,.66); }
+
+  .card{ background:rgba(255,255,255,.86); backdrop-filter:blur(6px);
+         border:1px solid rgba(16,24,40,.06); transition:box-shadow .25s, transform .25s, border-color .25s; }
+  .dark .card{ background:rgba(22,31,52,.7); border-color:rgba(255,255,255,.06); }
+  .card-hover:hover{ transform:translateY(-2px); box-shadow:0 18px 40px -16px rgba(79,70,229,.30); }
+
+  .field{ transition:border-color .2s, box-shadow .2s, background .2s; }
+  .field:focus{ outline:none; border-color:#818cf8; box-shadow:0 0 0 4px rgba(99,102,241,.15); }
+
+  textarea{resize:vertical}
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-thumb{background:rgba(100,116,139,.35);border-radius:9px;border:3px solid transparent;background-clip:content-box}
+  .dark ::-webkit-scrollbar-thumb{background:rgba(148,163,184,.3);background-clip:content-box}
+
+  /* litery ARC */
+  .arc-letter{font-family:'Fraunces',serif;font-weight:600;line-height:1}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .anim{animation:fadeUp .45s cubic-bezier(.2,.7,.3,1) both}
+
+  .seg-active{background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.06),0 6px 16px -8px rgba(16,24,40,.2);color:#4f46e5}
+  .dark .seg-active{background:rgba(99,102,241,.22);color:#c7d2fe;box-shadow:none}
+
+  /* ===== mobile / PWA ===== */
+  header{ padding-top:env(safe-area-inset-top); }
+  .safe-x{ padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right); }
+  @media (max-width:640px){
+    input, textarea, select{ font-size:16px !important; }
+    .card{ border-radius:1.25rem; }
+  }
+  button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+  .modal-backdrop{ background:rgba(8,12,22,.55); backdrop-filter:blur(4px); }
+</style>
+</head>
+<body class="app-bg min-h-screen text-slate-700 dark:text-slate-200 transition-colors">
+
+<!-- ====================== NAGŁÓWEK ====================== -->
+<header class="sticky top-0 z-30 glass border-b border-white/40 dark:border-white/5">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-800 shadow-lift flex items-center justify-center text-white">
+        <span class="arc-letter text-[15px] tracking-tight">ARC</span>
+      </div>
+      <div class="leading-tight">
+        <h1 class="font-display text-[19px] font-semibold text-slate-800 dark:text-white">Dziennik emocji</h1>
+        <p class="text-[11px] text-slate-400 dark:text-slate-500 -mt-0.5">model ARC · terapia poznawczo-behawioralna</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <nav class="hidden sm:flex items-center gap-1 p-1 rounded-2xl bg-slate-100/80 dark:bg-white/5">
+        <button id="tab-form-btn"  class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-semibold text-slate-500 dark:text-slate-400 transition">Nowy wpis</button>
+        <button id="tab-hist-btn"  class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-semibold text-slate-500 dark:text-slate-400 transition">Historia</button>
+        <button id="tab-stats-btn" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-semibold text-slate-500 dark:text-slate-400 transition">Statystyki</button>
+      </nav>
+      <button id="cloud-btn" title="Chmura / konto" class="relative h-10 w-10 grid place-items-center rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white/60 dark:bg-white/5 hover:shadow-soft transition">
+        <span class="text-[17px]">☁️</span>
+        <span id="cloud-dot" class="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-slate-300 border-2 border-white dark:border-ink-900"></span>
+      </button>
+      <button id="theme-btn" title="Zmień motyw" class="h-10 w-10 grid place-items-center rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white/60 dark:bg-white/5 hover:shadow-soft transition">
+        <span id="theme-icon" class="text-[17px]">🌙</span>
+      </button>
+    </div>
+  </div>
+  <nav class="sm:hidden flex items-center gap-1 px-4 pb-3">
+    <button class="mtab tab-btn flex-1 py-2 rounded-xl text-sm font-semibold text-slate-500 bg-slate-100/80 dark:bg-white/5" onclick="document.getElementById('tab-form-btn').click()">Wpis</button>
+    <button class="mtab flex-1 py-2 rounded-xl text-sm font-semibold text-slate-500 bg-slate-100/80 dark:bg-white/5" onclick="document.getElementById('tab-hist-btn').click()">Historia</button>
+    <button class="mtab flex-1 py-2 rounded-xl text-sm font-semibold text-slate-500 bg-slate-100/80 dark:bg-white/5" onclick="document.getElementById('tab-stats-btn').click()">Statystyki</button>
+  </nav>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+
+  <!-- ====================== WIDOK: FORMULARZ ====================== -->
+  <section id="view-form" class="anim">
+    <div class="mb-7">
+      <h2 class="font-display text-2xl sm:text-3xl font-semibold text-slate-800 dark:text-white">Co się wydarzyło?</h2>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-2xl">
+        Prześledź sytuację krok po kroku: <b class="text-amber-500">A</b> — co ją poprzedziło,
+        <b class="text-brand-500">R</b> — jak zareagowało ciało, myśli i zachowanie,
+        <b class="text-emerald-500">C</b> — jakie były konsekwencje.
+      </p>
+    </div>
+
+    <form id="arc-form" class="space-y-5">
+      <input type="hidden" id="entry-id">
+
+      <div class="card rounded-3xl shadow-soft p-5 grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Data i godzina</label>
+          <input id="f-datetime" type="datetime-local" required
+            class="field w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-2.5 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Emocja <span class="normal-case font-normal text-slate-300">· opcjonalnie</span></label>
+          <input id="f-emotion" type="text" placeholder="np. lęk, smutek, złość"
+            class="field w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-2.5 text-sm placeholder:text-slate-300">
+        </div>
+      </div>
+
+      <div class="card card-hover rounded-3xl shadow-soft p-5 sm:p-6 relative overflow-hidden">
+        <div class="absolute -right-4 -top-6 arc-letter text-[110px] text-amber-400/10 select-none pointer-events-none">A</div>
+        <div class="flex items-center gap-3 mb-3">
+          <span class="h-9 w-9 rounded-xl bg-amber-100 dark:bg-amber-400/15 text-amber-600 dark:text-amber-300 grid place-items-center arc-letter text-lg">A</span>
+          <div>
+            <h3 class="font-semibold text-slate-800 dark:text-white">Okoliczności poprzedzające</h3>
+            <p class="text-xs text-slate-400">Co wywołało twoją reakcję emocjonalną?</p>
+          </div>
+        </div>
+        <textarea id="f-antecedent" rows="3" placeholder="Opisz sytuację, która zapoczątkowała reakcję…"
+          class="field w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-4 py-3 text-sm placeholder:text-slate-300"></textarea>
+      </div>
+
+      <div class="card card-hover rounded-3xl shadow-soft p-5 sm:p-6 relative overflow-hidden">
+        <div class="absolute -right-4 -top-6 arc-letter text-[110px] text-brand-400/10 select-none pointer-events-none">R</div>
+        <div class="flex items-center gap-3 mb-4">
+          <span class="h-9 w-9 rounded-xl bg-brand-100 dark:bg-brand-500/15 text-brand-600 dark:text-brand-300 grid place-items-center arc-letter text-lg">R</span>
+          <div>
+            <h3 class="font-semibold text-slate-800 dark:text-white">Reakcja</h3>
+            <p class="text-xs text-slate-400">Trzy poziomy tej samej reakcji.</p>
+          </div>
+        </div>
+        <div class="grid md:grid-cols-3 gap-3">
+          <div>
+            <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5"><span>🫀</span> Doznania fizyczne</label>
+            <textarea id="f-physical" rows="4" placeholder="napięcie, kołatanie serca…"
+              class="field w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-3 text-sm placeholder:text-slate-300"></textarea>
+          </div>
+          <div>
+            <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5"><span>💭</span> Myśli</label>
+            <textarea id="f-thoughts" rows="4" placeholder="co przeszło ci przez głowę…"
+              class="field w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-3 text-sm placeholder:text-slate-300"></textarea>
+          </div>
+          <div>
+            <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5"><span>🏃</span> Zachowania</label>
+            <textarea id="f-behaviors" rows="4" placeholder="co zrobiłeś/aś…"
+              class="field w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-3 text-sm placeholder:text-slate-300"></textarea>
+          </div>
+        </div>
+        <div id="suggest-box" class="hidden mt-4 rounded-2xl border border-amber-200/80 dark:border-amber-400/20 bg-gradient-to-r from-amber-50 to-amber-50/40 dark:from-amber-400/10 dark:to-transparent p-4 anim">
+          <div class="flex items-start gap-3">
+            <span class="h-7 w-7 shrink-0 rounded-lg bg-amber-400/20 grid place-items-center">💡</span>
+            <div class="flex-1">
+              <p class="font-semibold text-sm text-amber-700 dark:text-amber-200 mb-2">W tych myślach mogą kryć się zniekształcenia poznawcze</p>
+              <div id="suggest-chips" class="flex flex-wrap gap-2"></div>
+              <p class="text-xs text-amber-600/70 dark:text-amber-300/60 mt-2.5">Kliknij sugestię, aby ją zaznaczyć — albo zignoruj.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-hover rounded-3xl shadow-soft p-5 sm:p-6 relative overflow-hidden">
+        <div class="absolute -right-4 -top-6 arc-letter text-[110px] text-emerald-400/10 select-none pointer-events-none">C</div>
+        <div class="flex items-center gap-3 mb-4">
+          <span class="h-9 w-9 rounded-xl bg-emerald-100 dark:bg-emerald-400/15 text-emerald-600 dark:text-emerald-300 grid place-items-center arc-letter text-lg">C</span>
+          <div>
+            <h3 class="font-semibold text-slate-800 dark:text-white">Konsekwencje</h3>
+            <p class="text-xs text-slate-400">Krótko- i długofalowe skutki reakcji.</p>
+          </div>
+        </div>
+        <div class="grid md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Krótkofalowe — co ci daje ta reakcja?</label>
+            <textarea id="f-short" rows="3" placeholder="np. chwilowa ulga, uniknięcie…"
+              class="field w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-3 text-sm placeholder:text-slate-300"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Długofalowe — jak może nasilać negatywne emocje?</label>
+            <textarea id="f-long" rows="3" placeholder="np. unikanie utrwala lęk…"
+              class="field w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-3 text-sm placeholder:text-slate-300"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="card rounded-3xl shadow-soft p-5 sm:p-6">
+        <div class="flex items-center justify-between mb-1">
+          <h3 class="font-semibold text-slate-800 dark:text-white">Zniekształcenia poznawcze</h3>
+          <span id="distortion-count" class="text-xs font-medium text-slate-400 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-white/5">zaznaczono: 0</span>
+        </div>
+        <p class="text-xs text-slate-400 mb-4">Zaznacz te, które dostrzegasz w swoich myślach. Najedź, aby zobaczyć opis i przykład.</p>
+        <div id="distortion-list" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <div class="sticky bottom-4 z-20">
+        <div class="glass rounded-2xl shadow-lift border border-white/50 dark:border-white/10 p-3 flex items-center gap-3">
+          <button type="submit" class="group bg-gradient-to-br from-brand-500 to-brand-700 hover:from-brand-600 hover:to-brand-800 text-white font-semibold px-6 py-2.5 rounded-xl text-sm shadow-lift transition active:scale-[.98]">
+            Zapisz wpis
+          </button>
+          <button type="button" id="reset-btn" class="text-sm font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition">Wyczyść</button>
+          <span id="save-msg" class="ml-auto text-sm font-semibold text-emerald-500 opacity-0 transition-opacity">Zapisano ✓</span>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <!-- ====================== WIDOK: HISTORIA / KALENDARZ ====================== -->
+  <section id="view-hist" class="hidden anim">
+    <div class="grid lg:grid-cols-5 gap-6">
+      <div class="lg:col-span-2 space-y-5">
+        <div class="card rounded-3xl shadow-soft p-5">
+          <div class="flex items-center justify-between mb-4">
+            <button id="cal-prev" class="h-9 w-9 grid place-items-center rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 transition">‹</button>
+            <h3 id="cal-title" class="font-display text-lg font-semibold capitalize text-slate-800 dark:text-white"></h3>
+            <button id="cal-next" class="h-9 w-9 grid place-items-center rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 transition">›</button>
+          </div>
+          <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-300 dark:text-slate-500 mb-2">
+            <div>Pn</div><div>Wt</div><div>Śr</div><div>Cz</div><div>Pt</div><div>So</div><div>Nd</div>
+          </div>
+          <div id="cal-grid" class="grid grid-cols-7 gap-1.5"></div>
+        </div>
+
+        <div class="card rounded-3xl shadow-soft p-5">
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Filtruj po zniekształceniu</label>
+          <select id="filter-distortion"
+            class="field w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-2.5 text-sm">
+            <option value="">— wszystkie wpisy —</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="lg:col-span-3">
+        <h3 id="hist-title" class="font-display text-lg font-semibold mb-4 text-slate-800 dark:text-white">Wszystkie wpisy</h3>
+        <div id="entry-list" class="space-y-4"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== WIDOK: STATYSTYKI ====================== -->
+  <section id="view-stats" class="hidden anim">
+    <h2 class="font-display text-2xl sm:text-3xl font-semibold text-slate-800 dark:text-white mb-6">Twój obraz w liczbach</h2>
+    <div class="grid sm:grid-cols-3 gap-4 mb-6">
+      <div class="card card-hover rounded-3xl shadow-soft p-5">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Wpisów łącznie</div>
+        <div id="stat-total" class="font-display text-4xl font-semibold text-brand-600 mt-1">0</div>
+      </div>
+      <div class="card card-hover rounded-3xl shadow-soft p-5">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Dni z wpisami</div>
+        <div id="stat-days" class="font-display text-4xl font-semibold text-emerald-500 mt-1">0</div>
+      </div>
+      <div class="card card-hover rounded-3xl shadow-soft p-5">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Najczęstsze zniekształcenie</div>
+        <div id="stat-top" class="text-lg font-semibold text-amber-500 mt-2 leading-snug">—</div>
+      </div>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-6">
+      <div class="card rounded-3xl shadow-soft p-5">
+        <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200 mb-4">Najczęstsze zniekształcenia</h3>
+        <canvas id="chart-distortions" height="260"></canvas>
+        <p id="stats-empty1" class="text-sm text-slate-400 hidden py-8 text-center">Brak danych — dodaj wpisy z zaznaczonymi zniekształceniami.</p>
+      </div>
+      <div class="card rounded-3xl shadow-soft p-5">
+        <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200 mb-4">Liczba wpisów w czasie</h3>
+        <canvas id="chart-timeline" height="260"></canvas>
+        <p id="stats-empty2" class="text-sm text-slate-400 hidden py-8 text-center">Brak danych.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ====================== MODAL: CHMURA / KONTO ====================== -->
+<div id="cloud-modal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="glass w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl shadow-lift border border-white/40 dark:border-white/10 p-5 sm:p-6 max-h-[90vh] overflow-y-auto anim" style="padding-bottom:calc(1.25rem + env(safe-area-inset-bottom))">
+    <div class="flex items-center justify-between mb-1">
+      <h3 class="font-display text-xl font-semibold text-slate-800 dark:text-white">Chmura i synchronizacja</h3>
+      <button id="cloud-close" class="h-9 w-9 grid place-items-center rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 text-lg">✕</button>
+    </div>
+    <p id="cloud-status" class="text-sm text-slate-500 dark:text-slate-400 mb-4">Niezalogowany — dane tylko na tym urządzeniu.</p>
+
+    <div class="mb-4">
+      <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Adres serwera (Worker URL)</label>
+      <input id="c-api" type="url" placeholder="https://twoj-worker.workers.dev"
+        class="field w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-2.5 text-sm placeholder:text-slate-300">
+      <p class="text-[11px] text-slate-400 mt-1">Wklej adres swojego Workera z Cloudflare (patrz instrukcja).</p>
+    </div>
+
+    <div id="auth-box" class="space-y-3">
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">E-mail</label>
+        <input id="c-email" type="email" autocomplete="username" placeholder="ty@example.com"
+          class="field w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-2.5 text-sm placeholder:text-slate-300">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Hasło</label>
+        <input id="c-pass" type="password" autocomplete="current-password" placeholder="min. 8 znaków"
+          class="field w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 px-3.5 py-2.5 text-sm placeholder:text-slate-300">
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button id="c-login" class="flex-1 bg-gradient-to-br from-brand-500 to-brand-700 hover:from-brand-600 hover:to-brand-800 text-white font-semibold py-2.5 rounded-xl text-sm shadow-lift transition active:scale-[.98]">Zaloguj</button>
+        <button id="c-register" class="flex-1 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-200 font-semibold py-2.5 rounded-xl text-sm transition active:scale-[.98]">Załóż konto</button>
+      </div>
+    </div>
+
+    <div id="account-box" class="hidden space-y-3">
+      <div class="flex gap-2">
+        <button id="c-sync" class="flex-1 bg-gradient-to-br from-brand-500 to-brand-700 hover:from-brand-600 hover:to-brand-800 text-white font-semibold py-2.5 rounded-xl text-sm shadow-lift transition active:scale-[.98]">Synchronizuj teraz</button>
+        <button id="c-logout" class="px-4 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-200 font-semibold py-2.5 rounded-xl text-sm transition">Wyloguj</button>
+      </div>
+      <p id="c-lastsync" class="text-[11px] text-slate-400 text-center"></p>
+    </div>
+
+    <p id="cloud-msg" class="hidden mt-3 text-sm rounded-xl px-3 py-2"></p>
+
+    <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-4 leading-relaxed">
+      Synchronizacja działa offline-first: wpisy zapisują się najpierw lokalnie, a po połączeniu z chmurą scalają się między urządzeniami. Bez podanego adresu serwera aplikacja działa w pełni lokalnie.
+    </p>
+  </div>
+</div>
+
+<footer class="max-w-5xl mx-auto px-4 sm:px-6 py-8 text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
+  Dane przechowywane lokalnie (localStorage) oraz — po zalogowaniu — synchronizowane z Twoją chmurą. Model ARC wg D. H. Barlow i in.,
+  <i>Transdiagnostyczna terapia poznawczo-behawioralna zaburzeń emocjonalnych</i>, GWP 2020.
+  Narzędzie wspomagające — nie zastępuje kontaktu ze specjalistą.
+</footer>
+
+<script>
+/* ============================================================
+   DANE: 17 zniekształceń poznawczych + słowa kluczowe
+   ============================================================ */
+const DISTORTIONS = [
+  { id:1,  name:"Czytanie w myślach", desc:"Zakładam, że wiem co myślą inni, choć nie mam na to wystarczających dowodów.", ex:'„On myśli, że jestem do niczego”.', kw:["myśli, że","na pewno uważa","wiem co myśli","pomyślą sobie","uznają mnie"] },
+  { id:2,  name:"Przepowiadanie przyszłości", desc:"Przewiduję przyszłość w czarnych barwach – będzie gorzej albo czyha niebezpieczeństwo.", ex:'„Obleję ten egzamin”, „Nie dostanę pracy”.', kw:["obleję","nie dam rady","na pewno się nie uda","będzie gorzej","nie uda mi się","poniosę porażkę"] },
+  { id:3,  name:"Katastrofizacja", desc:"Uważam, że to co się stało/stanie, będzie tak okropne, że tego nie zniosę.", ex:'„Będzie strasznie, jeśli obleję ten egzamin”.', kw:["nie zniosę","katastrofa","koniec świata","będzie strasznie","tragedia","nie przeżyję tego"] },
+  { id:4,  name:"Etykietowanie", desc:"Przypisuję ogólne cechy negatywne sobie i innym.", ex:'„Jestem odrażający”, „On jest niegodziwy”.', kw:["jestem beznadziejny","jestem do niczego","jestem głupi","nieudacznik","jestem słaby","on jest"] },
+  { id:5,  name:"Umniejszanie pozytywów", desc:"Twierdzę, że moje osiągnięcia i sukcesy innych są błahe.", ex:'„Łatwo przyszło, więc nie ma znaczenia”.', kw:["nie liczy się","to nic takiego","każdy by to zrobił","to się nie liczy","błahe","łatwo przyszło"] },
+  { id:6,  name:"Filtr negatywny", desc:"Skupiam się niemal wyłącznie na aspektach negatywnych.", ex:'„Wystarczy spojrzeć na tych, którzy mnie nie lubią”.', kw:["tylko złe","sami ludzie, którzy","nic dobrego","wyłącznie problemy"] },
+  { id:7,  name:"Nadmierne uogólnianie", desc:"Dostrzegam ogólny negatywny wzorzec w pojedynczym zdarzeniu.", ex:'„Takie rzeczy zwykle mi się przytrafiają”.', kw:["zawsze mi się","zwykle","jak zwykle","wszystko mi się","ciągle mi","za każdym razem"] },
+  { id:8,  name:"Myślenie dychotomiczne", desc:"Postrzegam zdarzenia/ludzi czarno-biało (wszystko albo nic).", ex:'„Wszyscy mnie odrzucają”, „Kompletna strata czasu”.', kw:["wszyscy","nikt","wszystko","nic","zawsze","nigdy","kompletna","totalnie"] },
+  { id:9,  name:"Nadużywanie powinności", desc:"Interpretuję zdarzenia wg tego, jakie powinny być, nie tego co jest.", ex:'„Powinienem osiągać dobre rezultaty…”.', kw:["muszę","powinienem","powinnam","musisz","powinien","trzeba","nie wolno mi","mam obowiązek"] },
+  { id:10, name:"Personalizacja", desc:"Biorę na siebie niewspółmierną część odpowiedzialności za negatywne zdarzenia.", ex:'„Moje małżeństwo się nie udało, bo zawiodłem”.', kw:["to moja wina","przeze mnie","zawiodłem","zawiodłam","to ja"] },
+  { id:11, name:"Obwinianie", desc:"Uważam, że inna osoba jest źródłem moich negatywnych doznań.", ex:'„To przez nią się tak czuję”.', kw:["to przez","to ich wina","to jego wina","to jej wina","oni są winni","wina rodziców"] },
+  { id:12, name:"Niesprawiedliwe porównania", desc:"Porównuję się z innymi wg nierealistycznych standardów i oceniam gorzej.", ex:'„Ona odnosi większe sukcesy”.', kw:["lepszy ode mnie","innym poszło lepiej","ona ma lepiej","wszyscy są lepsi","w porównaniu","gorszy od"] },
+  { id:13, name:"Żal odnoszący się do przeszłości", desc:"Skupiam się, że w przeszłości można było zrobić coś lepiej.", ex:'„Mogłem dostać lepszą pracę, gdybym się postarał”.', kw:["mogłem","mogłam","powinienem był","powinnam była","gdybym","nie powinienem był","żałuję"] },
+  { id:14, name:'Myślenie „co będzie jeśli”', desc:"Bezustannie pytam „co będzie, jeśli” – żadna odpowiedź nie zadowala.", ex:'„Co będzie, jeśli poczuję lęk?”.', kw:["co będzie jeśli","co jeśli","a jeśli","co gdy"] },
+  { id:15, name:"Rozumowanie emocjonalne", desc:"Uczucia rządzą moją interpretacją rzeczywistości.", ex:'„Jestem w depresji, więc w małżeństwie źle się dzieje”.', kw:["skoro tak czuję","czuję, więc","mam takie przeczucie","czuję że to prawda"] },
+  { id:16, name:"Nieumiejętność zakwestionowania myśli", desc:"Odrzucam dowody i argumenty podważające negatywne myśli.", ex:'„To nie ma nic do rzeczy, są głębsze problemy”.', kw:["to nic nie zmienia","to nie ma znaczenia","i tak","to bez znaczenia","są głębsze problemy"] },
+  { id:17, name:"Ocenianie", desc:"Patrzę na siebie/innych przez pryzmat czarno-białych ocen (dobry-zły).", ex:'„Na studiach szło mi słabo”.', kw:["słabo mi","jestem gorszy","oceniam","nie sprostałem","nie sprostałam","beznadziejnie mi poszło"] },
+];
+
+const LS_KEY = "arc_journal_entries_v1";
+
+/* ============================================================
+   STORAGE
+   ============================================================ */
+function loadEntries(){
+  let list;
+  try { list = JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+  catch(e){ list = []; }
+  let changed = false;
+  list.forEach(e=>{
+    if(e.updated == null){ e.updated = Date.parse(e.datetime) || Date.now(); changed = true; }
+    if(e.deleted == null){ e.deleted = false; changed = true; }
+  });
+  if(changed) localStorage.setItem(LS_KEY, JSON.stringify(list));
+  return list;
+}
+const activeEntries = () => entries.filter(e=>!e.deleted);
+function saveEntries(list){ localStorage.setItem(LS_KEY, JSON.stringify(list)); }
+
+let entries = loadEntries();
+let selectedDistortions = new Set();
+let calDate = new Date();
+let selectedDay = null;
+let filterDistortion = "";
+
+/* ============================================================
+   POMOCNICZE
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,'0');
+const dayKey = iso => iso.slice(0,10);
+function fmtDateTime(iso){
+  const d = new Date(iso);
+  return d.toLocaleString('pl-PL',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function distName(id){ const d = DISTORTIONS.find(x=>x.id===id); return d?d.name:''; }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============================================================
+   MOTYW
+   ============================================================ */
+function applyTheme(t){
+  const dark = t === 'dark';
+  document.documentElement.classList.toggle('dark', dark);
+  $('theme-icon').textContent = dark ? '☀️' : '🌙';
+  localStorage.setItem('arc_theme', t);
+  if (typeof refreshChartsTheme === 'function') refreshChartsTheme();
+}
+$('theme-btn').onclick = () => applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark');
+applyTheme(localStorage.getItem('arc_theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light'));
+
+/* ============================================================
+   ZAKŁADKI
+   ============================================================ */
+function setTab(name){
+  ['form','hist','stats'].forEach(v=>{
+    $('view-'+v).classList.toggle('hidden', v!==name);
+    const b = $('tab-'+v+'-btn');
+    const active = v===name;
+    b.classList.toggle('seg-active', active);
+    b.classList.toggle('text-slate-500', !active);
+    b.classList.toggle('dark:text-slate-400', !active);
+  });
+  const order = {form:0,hist:1,stats:2};
+  document.querySelectorAll('.mtab').forEach((el,i)=>{
+    const a = i===order[name];
+    el.classList.toggle('seg-active', a);
+    el.classList.toggle('bg-slate-100/80', !a);
+    el.classList.toggle('dark:bg-white/5', !a);
+  });
+  if(name!=='form'){ const v=$('view-'+name); v.classList.remove('anim'); void v.offsetWidth; v.classList.add('anim'); }
+  if(name==='hist'){ renderCalendar(); renderEntryList(); }
+  if(name==='stats'){ renderStats(); }
+}
+$('tab-form-btn').onclick  = ()=>setTab('form');
+$('tab-hist-btn').onclick  = ()=>setTab('hist');
+$('tab-stats-btn').onclick = ()=>setTab('stats');
+
+/* ============================================================
+   LISTA ZNIEKSZTAŁCEŃ (tagi)
+   ============================================================ */
+function renderDistortionTags(){
+  const c = $('distortion-list');
+  c.innerHTML = '';
+  DISTORTIONS.forEach(d=>{
+    const sel = selectedDistortions.has(d.id);
+    const b = document.createElement('button');
+    b.type='button';
+    b.dataset.id = d.id;
+    b.title = d.desc + '\nPrzykład: ' + d.ex;
+    b.className = 'px-3.5 py-1.5 rounded-full text-xs font-semibold border transition active:scale-95 ' +
+      (sel ? 'bg-gradient-to-br from-brand-500 to-brand-700 text-white border-transparent shadow-lift'
+           : 'bg-white/70 dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-300');
+    b.innerHTML = (sel?'✓ ':'') + escapeHtml(d.name);
+    b.onclick = ()=>{
+      if(selectedDistortions.has(d.id)) selectedDistortions.delete(d.id);
+      else selectedDistortions.add(d.id);
+      renderDistortionTags();
+    };
+    c.appendChild(b);
+  });
+  $('distortion-count').textContent = 'zaznaczono: ' + selectedDistortions.size;
+}
+
+/* ============================================================
+   AUTO-DETEKCJA (dyskretna sugestia)
+   ============================================================ */
+function detectDistortions(){
+  const text = ($('f-thoughts').value + ' ' + $('f-behaviors').value + ' ' + $('f-antecedent').value).toLowerCase();
+  if(text.trim().length < 3){ $('suggest-box').classList.add('hidden'); return; }
+  const found = [];
+  DISTORTIONS.forEach(d=>{
+    if(d.kw.some(k=> text.includes(k)) && !selectedDistortions.has(d.id)) found.push(d);
+  });
+  const box = $('suggest-box'), chips = $('suggest-chips');
+  if(found.length === 0){ box.classList.add('hidden'); return; }
+  chips.innerHTML = '';
+  found.forEach(d=>{
+    const b = document.createElement('button');
+    b.type='button';
+    b.className='px-3 py-1.5 rounded-full text-xs font-semibold bg-white dark:bg-white/10 border border-amber-300 dark:border-amber-400/30 text-amber-700 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-400/20 transition active:scale-95';
+    b.textContent = '+ ' + d.name;
+    b.title = d.desc;
+    b.onclick = ()=>{ selectedDistortions.add(d.id); renderDistortionTags(); detectDistortions(); };
+    chips.appendChild(b);
+  });
+  box.classList.remove('hidden');
+}
+['f-thoughts','f-behaviors','f-antecedent'].forEach(id=>{
+  let t; $(id).addEventListener('input', ()=>{ clearTimeout(t); t=setTimeout(detectDistortions, 500); });
+});
+
+/* ============================================================
+   FORMULARZ
+   ============================================================ */
+function resetForm(){
+  $('arc-form').reset();
+  $('entry-id').value = '';
+  selectedDistortions = new Set();
+  renderDistortionTags();
+  $('suggest-box').classList.add('hidden');
+  const now = new Date();
+  $('f-datetime').value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+$('reset-btn').onclick = resetForm;
+
+$('arc-form').addEventListener('submit', e=>{
+  e.preventDefault();
+  const id = $('entry-id').value || uid();
+  const entry = {
+    id,
+    datetime:   $('f-datetime').value,
+    emotion:    $('f-emotion').value.trim(),
+    antecedent: $('f-antecedent').value.trim(),
+    physical:   $('f-physical').value.trim(),
+    thoughts:   $('f-thoughts').value.trim(),
+    behaviors:  $('f-behaviors').value.trim(),
+    shortC:     $('f-short').value.trim(),
+    longC:      $('f-long').value.trim(),
+    distortions:[...selectedDistortions],
+    updated:    Date.now(),
+    deleted:    false,
+  };
+  const i = entries.findIndex(x=>x.id===id);
+  if(i>=0) entries[i]=entry; else entries.push(entry);
+  saveEntries(entries);
+  const m = $('save-msg');
+  m.style.opacity = 1; setTimeout(()=>m.style.opacity=0, 1800);
+  resetForm();
+  scheduleSync();
+});
+
+function editEntry(id){
+  const en = entries.find(x=>x.id===id); if(!en) return;
+  $('entry-id').value = en.id;
+  $('f-datetime').value = en.datetime;
+  $('f-emotion').value = en.emotion||'';
+  $('f-antecedent').value = en.antecedent||'';
+  $('f-physical').value = en.physical||'';
+  $('f-thoughts').value = en.thoughts||'';
+  $('f-behaviors').value = en.behaviors||'';
+  $('f-short').value = en.shortC||'';
+  $('f-long').value = en.longC||'';
+  selectedDistortions = new Set(en.distortions||[]);
+  renderDistortionTags();
+  setTab('form');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function deleteEntry(id){
+  if(!confirm('Usunąć ten wpis? Tej operacji nie można cofnąć.')) return;
+  const e = entries.find(x=>x.id===id);
+  if(e){ e.deleted = true; e.updated = Date.now(); }   // tombstone (do synchronizacji)
+  saveEntries(entries);
+  renderCalendar(); renderEntryList();
+  scheduleSync();
+}
+
+/* ============================================================
+   KALENDARZ
+   ============================================================ */
+const MONTHS = ['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
+function entriesForFilter(){
+  const base = activeEntries();
+  return filterDistortion ? base.filter(e=>(e.distortions||[]).includes(+filterDistortion)) : base;
+}
+function renderCalendar(){
+  const y = calDate.getFullYear(), m = calDate.getMonth();
+  $('cal-title').textContent = `${MONTHS[m]} ${y}`;
+  const grid = $('cal-grid'); grid.innerHTML='';
+  const counts = {};
+  entriesForFilter().forEach(e=>{ const k=dayKey(e.datetime); counts[k]=(counts[k]||0)+1; });
+  const first = new Date(y,m,1);
+  let startDow = (first.getDay()+6)%7;
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const td = new Date();
+  const todayKey = `${td.getFullYear()}-${pad(td.getMonth()+1)}-${pad(td.getDate())}`;
+
+  for(let i=0;i<startDow;i++) grid.appendChild(document.createElement('div'));
+  for(let d=1; d<=daysInMonth; d++){
+    const key = `${y}-${pad(m+1)}-${pad(d)}`;
+    const has = counts[key];
+    const isSel = selectedDay===key;
+    const cell = document.createElement('button');
+    cell.type='button';
+    cell.className = 'relative aspect-square rounded-xl text-sm font-medium grid place-items-center transition active:scale-95 ' +
+      (isSel ? 'bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lift' :
+       has   ? 'bg-brand-50 dark:bg-brand-500/15 text-brand-700 dark:text-brand-200 font-semibold hover:bg-brand-100 dark:hover:bg-brand-500/25' :
+               'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5') +
+      (key===todayKey && !isSel ? ' ring-1 ring-brand-300 dark:ring-brand-500/50' : '');
+    cell.textContent = d;
+    if(has){
+      const dot = document.createElement('span');
+      dot.className = 'absolute bottom-1.5 h-1.5 w-1.5 rounded-full ' + (isSel?'bg-white':'bg-brand-500');
+      cell.appendChild(dot);
+    }
+    cell.onclick = ()=>{ selectedDay = (selectedDay===key?null:key); renderCalendar(); renderEntryList(); };
+    grid.appendChild(cell);
+  }
+}
+$('cal-prev').onclick = ()=>{ calDate.setMonth(calDate.getMonth()-1); renderCalendar(); };
+$('cal-next').onclick = ()=>{ calDate.setMonth(calDate.getMonth()+1); renderCalendar(); };
+
+/* ============================================================
+   FILTR
+   ============================================================ */
+function buildFilterSelect(){
+  const sel = $('filter-distortion');
+  sel.innerHTML = '<option value="">— wszystkie wpisy —</option>';
+  DISTORTIONS.forEach(d=>{ const o=document.createElement('option'); o.value=d.id; o.textContent=d.name; sel.appendChild(o); });
+  sel.onchange = ()=>{ filterDistortion = sel.value; selectedDay=null; renderCalendar(); renderEntryList(); };
+}
+
+/* ============================================================
+   LISTA WPISÓW
+   ============================================================ */
+function renderEntryList(){
+  const wrap = $('entry-list');
+  let list = entriesForFilter();
+  if(selectedDay) list = list.filter(e=>dayKey(e.datetime)===selectedDay);
+  list = list.slice().sort((a,b)=> b.datetime.localeCompare(a.datetime));
+
+  $('hist-title').textContent = selectedDay
+    ? new Date(selectedDay).toLocaleDateString('pl-PL',{day:'2-digit',month:'long',year:'numeric'})
+    : (filterDistortion ? `Filtr: „${distName(+filterDistortion)}”` : 'Wszystkie wpisy');
+
+  if(list.length===0){
+    wrap.innerHTML = `<div class="card rounded-3xl shadow-soft p-10 text-center">
+        <div class="text-4xl mb-3">🗓️</div>
+        <p class="text-sm text-slate-400">Brak wpisów do wyświetlenia.</p>
+      </div>`;
+    return;
+  }
+  wrap.innerHTML = '';
+  list.forEach((e,idx)=>{
+    const card = document.createElement('div');
+    card.className='card card-hover rounded-3xl shadow-soft p-5 anim';
+    card.style.animationDelay = (idx*40)+'ms';
+    const tags = (e.distortions||[]).map(id=>
+      `<span class="px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-400/15 text-amber-700 dark:text-amber-300">${escapeHtml(distName(id))}</span>`
+    ).join(' ');
+    const row = (label,val,dot)=> val ? `<div class="mt-2.5"><span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400"><span class="h-1.5 w-1.5 rounded-full ${dot}"></span>${label}</span><p class="text-sm whitespace-pre-wrap text-slate-600 dark:text-slate-300 mt-0.5">${escapeHtml(val)}</p></div>` : '';
+    card.innerHTML = `
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <div class="text-xs font-medium text-slate-400">${fmtDateTime(e.datetime)}</div>
+          ${e.emotion?`<div class="text-sm font-semibold text-slate-800 dark:text-white mt-1 inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-rose-400"></span>${escapeHtml(e.emotion)}</div>`:''}
+        </div>
+        <div class="flex gap-1 shrink-0">
+          <button class="text-xs font-medium px-2.5 py-1 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-white/5 transition" data-edit="${e.id}">edytuj</button>
+          <button class="text-xs font-medium px-2.5 py-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition" data-del="${e.id}">usuń</button>
+        </div>
+      </div>
+      ${row('Okoliczności', e.antecedent,'bg-amber-400')}
+      ${row('Doznania fizyczne', e.physical,'bg-brand-400')}
+      ${row('Myśli', e.thoughts,'bg-brand-400')}
+      ${row('Zachowania', e.behaviors,'bg-brand-400')}
+      ${row('Konsekwencje krótkofalowe', e.shortC,'bg-emerald-400')}
+      ${row('Konsekwencje długofalowe', e.longC,'bg-emerald-400')}
+      ${tags?`<div class="mt-3.5 pt-3.5 border-t border-slate-100 dark:border-white/5 flex flex-wrap gap-1.5">${tags}</div>`:''}
+    `;
+    card.querySelector('[data-edit]').onclick = ()=>editEntry(e.id);
+    card.querySelector('[data-del]').onclick  = ()=>deleteEntry(e.id);
+    wrap.appendChild(card);
+  });
+}
+
+/* ============================================================
+   STATYSTYKI / WYKRESY
+   ============================================================ */
+let chartD=null, chartT=null;
+function chartColors(){
+  const dark = document.documentElement.classList.contains('dark');
+  return { grid: dark?'rgba(148,163,184,.12)':'rgba(15,23,42,.07)', text: dark?'#94a3b8':'#64748b' };
+}
+function renderStats(){
+  const act = activeEntries();
+  $('stat-total').textContent = act.length;
+  const days = new Set(act.map(e=>dayKey(e.datetime)));
+  $('stat-days').textContent = days.size;
+
+  const cnt = {};
+  act.forEach(e=>(e.distortions||[]).forEach(id=>cnt[id]=(cnt[id]||0)+1));
+  const sorted = Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+  $('stat-top').textContent = sorted.length ? distName(+sorted[0][0]) : '—';
+
+  const col = chartColors();
+  const grad = (ctx,c1,c2)=>{ const g=ctx.createLinearGradient(0,0,ctx.canvas.width,0); g.addColorStop(0,c1); g.addColorStop(1,c2); return g; };
+
+  const top = sorted.slice(0,10);
+  $('stats-empty1').classList.toggle('hidden', top.length>0);
+  $('chart-distortions').style.display = top.length>0 ? '' : 'none';
+  if(chartD) chartD.destroy();
+  if(top.length>0){
+    const ctx = $('chart-distortions').getContext('2d');
+    chartD = new Chart(ctx,{
+      type:'bar',
+      data:{ labels: top.map(t=>distName(+t[0])),
+        datasets:[{ data: top.map(t=>t[1]), backgroundColor:grad(ctx,'#818cf8','#5b54e8'), borderRadius:8, barThickness:16 }] },
+      options:{ indexAxis:'y', plugins:{legend:{display:false}, tooltip:{backgroundColor:'#1c2a47'}},
+        scales:{ x:{ ticks:{ color:col.text, precision:0 }, grid:{color:col.grid} },
+                 y:{ ticks:{ color:col.text, font:{size:11} }, grid:{display:false} } } }
+    });
+  }
+
+  const byMonth = {};
+  act.forEach(e=>{ const k=e.datetime.slice(0,7); byMonth[k]=(byMonth[k]||0)+1; });
+  const mk = Object.keys(byMonth).sort();
+  $('stats-empty2').classList.toggle('hidden', mk.length>0);
+  $('chart-timeline').style.display = mk.length>0 ? '' : 'none';
+  if(chartT) chartT.destroy();
+  if(mk.length>0){
+    const ctx = $('chart-timeline').getContext('2d');
+    const g = ctx.createLinearGradient(0,0,0,260); g.addColorStop(0,'rgba(16,185,129,.30)'); g.addColorStop(1,'rgba(16,185,129,0)');
+    chartT = new Chart(ctx,{
+      type:'line',
+      data:{ labels: mk, datasets:[{ data: mk.map(k=>byMonth[k]),
+        borderColor:'#10b981', backgroundColor:g, fill:true, tension:.4, pointRadius:4, pointBackgroundColor:'#10b981', borderWidth:3 }] },
+      options:{ plugins:{legend:{display:false}, tooltip:{backgroundColor:'#1c2a47'}},
+        scales:{ x:{ ticks:{ color:col.text }, grid:{color:col.grid} },
+                 y:{ ticks:{ color:col.text, precision:0 }, grid:{color:col.grid} } } }
+    });
+  }
+}
+function refreshChartsTheme(){ if(!$('view-stats').classList.contains('hidden')) renderStats(); }
+
+/* ============================================================
+   CHMURA / SYNCHRONIZACJA  (Cloudflare Worker + D1)
+   ============================================================ */
+const cloud = {
+  url:   localStorage.getItem('arc_api_url') || '',
+  token: localStorage.getItem('arc_token')   || '',
+  email: localStorage.getItem('arc_email')   || '',
+  last:  localStorage.getItem('arc_lastsync')|| '',
+};
+let syncTimer = null;
+
+function setCloudDot(state){
+  const c = { on:'bg-emerald-400', off:'bg-slate-300', busy:'bg-amber-400 animate-pulse', err:'bg-rose-400' }[state] || 'bg-slate-300';
+  $('cloud-dot').className = 'absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-ink-900 ' + c;
+}
+function cloudMsg(text, ok){
+  const m = $('cloud-msg');
+  if(!text){ m.classList.add('hidden'); return; }
+  m.textContent = text;
+  m.className = 'mt-3 text-sm rounded-xl px-3 py-2 ' +
+    (ok ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+        : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-300');
+  m.classList.remove('hidden');
+}
+function refreshCloudUI(){
+  $('c-api').value = cloud.url;
+  const logged = !!cloud.token;
+  $('auth-box').classList.toggle('hidden', logged);
+  $('account-box').classList.toggle('hidden', !logged);
+  if(logged){
+    $('cloud-status').textContent = 'Zalogowano jako ' + cloud.email;
+    $('c-lastsync').textContent = cloud.last ? ('Ostatnia synchronizacja: ' + new Date(+cloud.last).toLocaleString('pl-PL')) : 'Jeszcze nie synchronizowano.';
+    setCloudDot(navigator.onLine ? 'on' : 'err');
+  } else {
+    $('cloud-status').textContent = 'Niezalogowany — dane tylko na tym urządzeniu.';
+    setCloudDot('off');
+  }
+}
+async function api(path, body){
+  if(!cloud.url) throw new Error('Brak adresu serwera.');
+  const r = await fetch(cloud.url.replace(/\/$/,'') + path, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', ...(cloud.token?{'Authorization':'Bearer '+cloud.token}:{}) },
+    body: JSON.stringify(body||{}),
+  });
+  const data = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(data.error || ('Błąd serwera ('+r.status+')'));
+  return data;
+}
+async function doAuth(kind){
+  cloud.url = $('c-api').value.trim();
+  localStorage.setItem('arc_api_url', cloud.url);
+  const email = $('c-email').value.trim().toLowerCase();
+  const pass  = $('c-pass').value;
+  if(!cloud.url){ cloudMsg('Podaj adres serwera (Worker URL).'); return; }
+  if(!email || pass.length<8){ cloudMsg('Podaj e-mail i hasło (min. 8 znaków).'); return; }
+  setCloudDot('busy'); cloudMsg(kind==='register'?'Tworzę konto…':'Loguję…', true);
+  try{
+    const data = await api(kind==='register'?'/auth/register':'/auth/login', {email, password:pass});
+    cloud.token = data.token; cloud.email = email;
+    localStorage.setItem('arc_token', cloud.token);
+    localStorage.setItem('arc_email', cloud.email);
+    $('c-pass').value='';
+    refreshCloudUI();
+    cloudMsg('Zalogowano. Synchronizuję…', true);
+    await syncNow(true);
+    cloudMsg('Gotowe — dane zsynchronizowane.', true);
+  }catch(e){ setCloudDot('err'); cloudMsg(e.message); }
+}
+async function syncNow(silent){
+  if(!cloud.token || !cloud.url){ if(!silent) cloudMsg('Najpierw zaloguj się.'); return; }
+  if(!navigator.onLine){ setCloudDot('err'); if(!silent) cloudMsg('Brak połączenia — zsynchronizuję po odzyskaniu sieci.'); return; }
+  setCloudDot('busy');
+  try{
+    const data = await api('/sync', { entries });
+    if(Array.isArray(data.entries)){
+      entries = data.entries;
+      saveEntries(entries);
+      renderDistortionTags();
+      if(!$('view-hist').classList.contains('hidden')){ renderCalendar(); renderEntryList(); }
+      if(!$('view-stats').classList.contains('hidden')) renderStats();
+    }
+    cloud.last = String(Date.now());
+    localStorage.setItem('arc_lastsync', cloud.last);
+    refreshCloudUI();
+    if(!silent) cloudMsg('Zsynchronizowano ✓', true);
+  }catch(e){
+    setCloudDot('err');
+    if(e.message.includes('401')||/token|auth/i.test(e.message)){ logout(); cloudMsg('Sesja wygasła — zaloguj się ponownie.'); }
+    else if(!silent) cloudMsg(e.message);
+  }
+}
+function scheduleSync(){
+  if(!cloud.token) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(()=>syncNow(true), 1500);
+}
+function logout(){
+  cloud.token=''; cloud.email='';
+  localStorage.removeItem('arc_token'); localStorage.removeItem('arc_email');
+  refreshCloudUI();
+}
+$('cloud-btn').onclick   = ()=>{ refreshCloudUI(); cloudMsg(''); $('cloud-modal').classList.remove('hidden'); };
+$('cloud-close').onclick = ()=> $('cloud-modal').classList.add('hidden');
+$('cloud-modal').onclick = e=>{ if(e.target===$('cloud-modal')) $('cloud-modal').classList.add('hidden'); };
+$('c-login').onclick    = ()=>doAuth('login');
+$('c-register').onclick = ()=>doAuth('register');
+$('c-sync').onclick     = ()=>syncNow(false);
+$('c-logout').onclick   = logout;
+$('c-api').addEventListener('change', ()=>{ cloud.url=$('c-api').value.trim(); localStorage.setItem('arc_api_url', cloud.url); });
+window.addEventListener('online',  ()=>{ refreshCloudUI(); syncNow(true); });
+window.addEventListener('offline', ()=> setCloudDot('err'));
+
+/* ============================================================
+   SERVICE WORKER (PWA / offline)
+   ============================================================ */
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+
+/* ============================================================
+   START
+   ============================================================ */
+buildFilterSelect();
+renderDistortionTags();
+resetForm();
+setTab('form');
+refreshCloudUI();
+if(cloud.token) syncNow(true);
+</script>
+</body>
+</html>
